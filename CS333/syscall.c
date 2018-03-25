@@ -126,9 +126,9 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_halt]    sys_halt,
-//#ifdef CS333_P1
+#ifdef CS333_P1
 [SYS_date]    sys_date,
-//#endif
+#endif
 };
 
 

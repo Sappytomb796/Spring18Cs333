@@ -484,18 +484,6 @@ kill(int pid)
 }
 #endif
 
-#ifdef CS333_P1
-// Helper function.  As a tick is 1/1000 of a second, we want to
-// divide by 1000 to get the whole number of seconds, and then
-// the leftover of the elapsed time, the mod of the input, is
-// the decimal portion and should be added to the toal.
-void
-print_elapsed(int n)
-{
-  cprintf("%d.%d", (n/1000), (n%1000));
-}
-#endif
-
 static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
@@ -517,8 +505,9 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
-
-  cprintf("PID \tState \tName \tElapsed \tPCs\n");
+  uint temp;
+  
+  cprintf("\tPID \tState \tName \tElapsed \tPCs\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -526,8 +515,9 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d \t%s \t%s\t", p->pid, state, p->name);
-    print_elapsed(p->start_ticks);
+    cprintf("\t%d \t%s \t%s\t", p->pid, state, p->name);
+    temp = ticks;
+    cprintf("%d.%d\t", ((temp - p->start_ticks)/1000), ((temp - p->start_ticks)%1000));
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
