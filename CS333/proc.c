@@ -71,6 +71,11 @@ found:
 #ifdef CS333_P1
   p->start_ticks = ticks;
 #endif
+#ifdef CS333_P2
+  //initialize tick counters
+  p->cpu_ticks_total = 0;
+  p->cpu_ticks_in    = 0;
+#endif
   return p;
 }
 
@@ -96,6 +101,12 @@ userinit(void)
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
 
+#ifdef CS333_P2
+  p->parent = p;
+  p->uid = DEFAULT_UID;
+  p->gid = DEFAULT_GID;
+#endif
+  
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -145,7 +156,11 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-
+#ifdef CS333_P2
+  np->uid = proc->uid;
+  np->gid = proc->gid;
+#endif
+  
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -304,6 +319,9 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+#ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+#endif
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
 
@@ -345,6 +363,9 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = cpu->intena;
+#ifdef CS333_P2
+  proc->cpu_ticks_total += (ticks - proc->cpu_ticks_in);
+#endif
   swtch(&proc->context, cpu->scheduler);
   cpu->intena = intena;
 }
@@ -496,8 +517,45 @@ static char *states[] = {
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
+#ifdef CS333_P2
+void
+procdump(void)
+{
+  int i;
+  struct proc *p;
+  char *state;
+  uint pc[10];
+  uint temp;
+  
+  cprintf("\tPID \tName \tUID \tGID \tPPID \tElapsed \tCPU \tState \tSize \tPCs\n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
 
-#ifdef CS333_P1
+    cprintf("\t%d\t%s\t%d\t%d", p->pid, p->name, p->uid, p->gid);
+    if(p->parent == 0x00)
+      cprintf("\t%d\t", p->uid);
+    else
+      cprintf("\t%d\t", p->parent->uid);
+    temp = ticks;
+    cprintf("%d.%d\t", ((temp - p->start_ticks)/1000), ((temp - p->start_ticks)%1000));
+    cprintf(" \t%d", p->cpu_ticks_total);
+    cprintf("\t%s\t%d\t", state, p->sz);
+    if(p->state == SLEEPING){
+      getcallerpcs((uint*)p->context->ebp+2, pc);
+      for(i=0; i<10 && pc[i] != 0; i++)
+	cprintf(" %p", pc[i]);
+    }
+    cprintf("\n");
+  }
+  cprintf("$ "); //This kills me not having the input that I can type on the command line.
+}
+
+#elif CS333_P1
 void
 procdump(void)
 {
@@ -551,5 +609,63 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+#endif
+
+#ifdef CS333_P2
+char *
+convert_state(int n)
+{
+  switch(n){
+  case 0:
+    return "Unused  ";
+  case 1:
+    return "Embryo  ";
+  case 2:
+    return "Sleeping";
+  case 3:
+    return "Runnable";
+  case 4:
+    return "Running ";
+  case 5:
+    return "Zombie  ";
+  }
+
+  return "ERROR";
+}
+
+
+int
+getproc(int max, struct uproc * table)
+{
+  int i = 0;
+  int count = 0;
+  char * temp;
+
+  acquire(&ptable.lock); //Acquire the lock so nothing is being changed while reading
+  while((i < NPROC) && (ptable.proc[i].state != UNUSED) && i < max){
+    //read and copy all useful information
+    temp = 0x00;
+    (table[count]).pid = ptable.proc[i].pid;
+    (table[count]).uid = ptable.proc[i].uid;
+    (table[count]).gid = ptable.proc[i].gid;
+    if(ptable.proc[i].parent->uid == 0x00)
+      (table[count]).ppid = ptable.proc[i].uid;
+    else
+      (table[count]).ppid = ptable.proc[i].parent->uid;
+
+    (table[count]).CPU_total_ticks = ptable.proc[i].cpu_ticks_total;
+    (table[count]).elapsed_ticks = (ticks - ptable.proc[i].start_ticks);
+    (table[count]).size = ptable.proc[i].sz;
+
+    safestrcpy((table[count]).name, ptable.proc[i].name, sizeof(ptable.proc[i].name));
+    temp = convert_state(ptable.proc[i].state);
+    safestrcpy((table[count]).state, temp, (strlen(temp) +1));
+
+    ++count;
+    ++i;
+  }
+  release(&ptable.lock); //Make sure to unlock the ptable before leaving!!
+  return count;
 }
 #endif
