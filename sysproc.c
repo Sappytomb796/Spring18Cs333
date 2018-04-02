@@ -93,3 +93,85 @@ sys_halt(void){
   return 0;
 }
 
+#ifdef CS333_P1
+int
+sys_date(void)
+{
+  struct rtcdate *d;
+
+  if(argptr(0, (void*)&d, sizeof(struct rtcdate)) < 0)
+    return -1;
+
+  argptr(0, (void*)(&d), sizeof(*d));
+  cmostime(d);
+  
+  return 0;
+}
+#endif
+
+#ifdef CS333_P2
+int
+sys_getuid(void)
+{
+  return proc->uid;
+}
+
+int
+sys_getgid(void)
+{
+  return proc->gid;
+}
+
+// Make sure if there is no parent to
+// return our own pid.
+int
+sys_getppid(void)
+{
+  if(proc->parent)
+    return proc->parent->pid;
+  else
+    return proc->pid;
+}
+
+int sys_setuid(void)
+{
+  uint num;
+
+  argint(0, (int*)&num);
+  //if it's a valid input, load it and return success
+  if(0 <= num && num <= 32767){
+    proc->uid = num;
+    return 1; }
+  return -1;
+}
+
+int sys_setgid(void)
+{
+  uint num;
+
+  argint(0, (int*)&num);
+  if(0 <= num && num <= 32767){
+    proc->gid = num;
+    return 1; }
+  return -1;
+}
+
+int
+sys_getprocs(void)
+{
+  int temp;
+  uint size;
+  struct uproc ** table = 0x00;
+
+  //Start by checking the two base cases; no ints in the frame
+  //and nothing else waiting in the stack
+  if(argint(0, (int *)&size) < 0)
+    return -1;
+
+  if(argptr(1, (char **)table, sizeof(struct uproc *)) < 0)
+    return -1;
+
+  temp = getproc(size, *table);
+  return temp;
+}
+#endif

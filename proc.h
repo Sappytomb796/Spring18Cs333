@@ -1,3 +1,4 @@
+#include "uproc.h"
 // Segments in proc->gdt.
 #define NSEGS     7
 
@@ -66,8 +67,20 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+#ifdef CS333_P1
+  uint start_ticks;            // ticks since proc started
+#endif
+#ifdef CS333_P2
+  uint uid;
+  uint gid;
+  uint cpu_ticks_total;        // total elapsed ticks in CPU
+  uint cpu_ticks_in;           // ticks when scheduled
+#endif
 };
 
+#ifdef CS333_P2
+int getproc(int max, struct uproc * table);
+#endif
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
