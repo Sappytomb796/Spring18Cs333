@@ -70,7 +70,7 @@ int main()
     pass = -1;
   
   ppid = getppid();
-  printf(2, "Parent process is: %d\n", ppid);
+  printf(2, "Parent process id is: %d\n", ppid);
   if(ppid == -1)
     pass = -1;
 

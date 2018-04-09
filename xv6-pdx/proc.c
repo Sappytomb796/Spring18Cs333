@@ -590,7 +590,7 @@ procdump(void)
   }
 }
 
-#else
+#else //Flags off or default
 void
 procdump(void)
 {
