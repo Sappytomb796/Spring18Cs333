@@ -91,7 +91,3 @@ p5-test.h
 testsetuid.c
 testSched.c
 uproc.h
-
-# testing files:
-p2testsuite.c
-p2test.c
