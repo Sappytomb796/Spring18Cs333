@@ -37,6 +37,11 @@ main(void)
     i++;
     printf(1, "\n");
   }
+
+  //Lets delete the whole table nao =D
+  //for(i = 0; i < rc; i++)
+  //  free((void*)p[i]);
+  //free(p);
   
   exit();
 }

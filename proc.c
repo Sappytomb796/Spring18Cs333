@@ -167,7 +167,7 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  acquire(&ptable.lock);
+  //  acquire(&ptable.lock);
 #ifdef CS333_P3P4
   // Algorithm/ thoughts;
   // This is the first process, we are hand crafting it,
@@ -185,7 +185,7 @@ userinit(void)
 #else
   p->state = RUNNABLE;
 #endif
-  release(&ptable.lock);
+  //  release(&ptable.lock);
 }
 
 // Grow current process's memory by n bytes.
