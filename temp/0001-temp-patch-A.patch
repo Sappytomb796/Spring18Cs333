@@ -1,0 +1,706 @@
+From 0f9dee2cd3106c0a54664144259be64372e9ba68 Mon Sep 17 00:00:00 2001
+From: Sappytomb796 <malice@pdx.edu>
+Date: Fri, 20 Apr 2018 22:25:47 -0700
+Subject: [PATCH 1/2] temp patch A
+
+---
+ Makefile       |   2 +-
+ p2testsuite.c  | 395 ---------------------------------------------------------
+ ps.c           |   5 -
+ runoff.list    |   6 +-
+ testuidgid.c   | 118 -----------------
+ testuidgid.txt |  49 -------
+ time.c         |  48 +------
+ 7 files changed, 5 insertions(+), 618 deletions(-)
+ delete mode 100644 p2testsuite.c
+ delete mode 100644 testuidgid.c
+ delete mode 100644 testuidgid.txt
+
+diff --git a/Makefile b/Makefile
+index 2581097..336ea5b 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ # Set flag to correct CS333 project number: 1, 2, ...
+ # 0 == original xv6-pdx distribution functionality
+-1;3409;0cCS333_PROJECT ?= 2
++CS333_PROJECT ?= 1
+ CS333_CFLAGS = 
+ CS333_UPROGS =
+ CS333_TPROGS =
+diff --git a/p2testsuite.c b/p2testsuite.c
+deleted file mode 100644
+index 52e1e24..0000000
+--- a/p2testsuite.c
++++ /dev/null
+@@ -1,395 +0,0 @@
+-/*
+-  A basic test suite for Portland State University CS333 Operating Systems Project 2.
+-  Created by Joe Coleman
+-*/
+-#ifdef CS333_P2
+-#include "types.h"
+-#include "user.h"
+-
+-// comment out tests for features the student doesn't have implemented
+-// Note the CPUTIME_TEST requires GETPROCS_TEST
+-#define UIDGIDPPID_TEST
+-//#define CPUTIME_TEST
+-//#define GETPROCS_TEST
+-#define TIME_TEST
+-
+-
+-#ifdef GETPROCS_TEST
+-#include "uproc.h"
+-#endif
+-
+-#ifdef UIDGIDPPID_TEST
+-static void
+-testppid(void){
+-  int ret, pid, ppid;
+-
+-  printf(1, "\n----------\nRunning PPID Test\n----------\n");
+-  pid = getpid();
+-  ret = fork();
+-  if(ret == 0){
+-    ppid = getppid();
+-    if(ppid != pid)
+-      printf(2, "FAILED: Parent PID is %d, Child's PPID is %d\n", pid, ppid);
+-    else
+-      printf(1, "** Test passed! **\n");
+-    exit();
+-  }
+-  else
+-    wait();
+-}
+-
+-static int
+-testgid(uint new_val, uint expected_get_val, int expected_set_ret){
+-  int ret;
+-  uint post_gid, pre_gid;
+-  int success = 0;
+-
+-  pre_gid = getgid();
+-  ret = setgid(new_val);
+-  if((ret < 0 && expected_set_ret >= 0) || (ret >= 0 && expected_set_ret < 0)){
+-    printf(2, "FAILED: setgid(%d) returned %d, expected %d\n", new_val, ret, expected_set_ret);
+-    success = -1;
+-  }
+-  post_gid = getgid();
+-  if(post_gid != expected_get_val){
+-    printf(2, "FAILED: UID was %d. After setgid(%d), getgid() returned %d, expected %d\n", 
+-          pre_gid, new_val, post_gid, expected_get_val);
+-    success = -1;
+-  }
+-  return success;
+-}
+-
+-static int
+-testuid(uint new_val, uint expected_get_val, int expected_set_ret){
+-  int ret;
+-  uint post_uid, pre_uid;
+-  int success = 0;
+-
+-  pre_uid = getuid();
+-  ret = setuid(new_val);
+-  if((ret < 0 && expected_set_ret >= 0) || (ret >= 0 && expected_set_ret < 0)){
+-    printf(2, "FAILED: setuid(%d) returned %d, expected %d\n", new_val, ret, expected_set_ret);
+-    success = -1;
+-  }
+-  post_uid = getuid();
+-  if(post_uid != expected_get_val){
+-    printf(2, "FAILED: UID was %d. After setuid(%d), getuid() returned %d, expected %d\n", 
+-          pre_uid, new_val, post_uid, expected_get_val);
+-    success = -1;
+-  }
+-  return success;
+-}
+-
+-static void
+-testuidgid(void)
+-{
+-  int uid, gid;
+-  int success = 0;
+-
+-  printf(1, "\n----------\nRunning UID / GID Tests\n----------\n");
+-  uid = getuid();
+-  if(uid < 0 || uid > 32767){
+-    printf(1, "FAILED: Default UID %d, out of range\n", uid);
+-    success = -1;
+-  }
+-  if (testuid(0, 0, 0))
+-    success = -1;
+-  if (testuid(5, 5, 0))
+-    success = -1;
+-  if (testuid(32767, 32767, 0))
+-    success = -1;
+-  if (testuid(32768, 32767, -1))
+-    success = -1;
+-  if (testuid(-1, 32767, -1))
+-    success = -1;
+- 
+-  gid = getgid();
+-  if(gid < 0 || gid > 32767){
+-    printf(1, "FAILED: Default GID %d, out of range\n", gid);
+-    success = -1;
+-  }
+-  if (testgid(0, 0, 0))
+-    success = -1;
+-  if (testgid(5, 5, 0))
+-    success = -1;
+-  if (testgid(32767, 32767, 0))
+-    success = -1;
+-  if (testgid(-1, 32767, -1))
+-    success = -1;
+-  if (testgid(32768, 32767, -1))
+-    success = -1;
+- 
+-  if (success == 0)
+-    printf(1, "** All tests passed! **\n");
+-}
+-
+-static void
+-testuidgidinheritance(void){
+-  int ret, success, uid, gid;
+-  success = 0;
+-
+-  printf(1, "\n----------\nRunning UID / GID Inheritance Test\n----------\n");
+-  if (testuid(12345, 12345, 0))
+-    success = -1;
+-  if (testgid(12345, 12345, 0))
+-    success = -1;
+-  if(success != 0)
+-    return;
+-
+-  ret = fork();
+-  if(ret == 0){
+-    uid = getuid();
+-    gid = getgid();
+-    if(uid != 12345){
+-      printf(2, "FAILED: Parent UID is 12345, child UID is %d\n", uid);
+-    }
+-    else if(gid != 12345){
+-      printf(2, "FAILED: Parent GID is 12345, child GID is %d\n", gid);
+-    }
+-    else
+-      printf(1, "** Test Passed! **\n"); 
+-    exit();
+-  }
+-  else {
+-    wait();
+-  }
+-}
+-#endif
+-
+-#ifdef GETPROCS_TEST
+-#ifdef CPUTIME_TEST
+-// Simple test to have the program sleep for 200 milliseconds to see if CPU_time properly doesn't change
+-// And then gets CPU_time again to see if elapsed CPU_total_ticks is reasonable
+-static int
+-getcputime(char * name, struct uproc * table){
+-  struct uproc *p = 0;
+-  int size;
+-  
+-  size = getprocs(64, table);
+-  for(int i = 0; i < size; ++i){
+-    if(strcmp(table[i].name, name) == 0){
+-      p = table + i;
+-      break;
+-    }
+-  }
+-  if(p == 0){
+-    printf(2, "FAILED: Test program \"%s\" not found in table returned by getprocs\n", name);
+-    return -1;
+-  }
+-  else
+-    return p->CPU_total_ticks;
+-}
+-
+-static void
+-testcputime(char * name){
+-  struct uproc *table;
+-  uint time1, time2, pre_sleep, post_sleep;
+-  int success = 0;
+-  int i, num;
+-
+-  printf(1, "\n----------\nRunning CPU Time Test\n----------\n");
+-  table = malloc(sizeof(struct uproc) * 64);
+-  printf(1, "This will take a couple seconds\n");
+-
+-  // Loop for a long time to see if the elapsed CPU_total_ticks is in a reasonable range
+-  time1 = getcputime(name, table);
+-  for(i = 0, num = 0; i < 1000000; ++i){
+-    ++num;
+-    if(num % 100000 == 0){
+-      pre_sleep = getcputime(name, table);
+-      sleep(200);
+-      post_sleep = getcputime(name, table);
+-      if((post_sleep - pre_sleep) >= 100){
+-        printf(2, "FAILED: CPU_total_ticks changed by 100+ milliseconds while process was asleep\n");
+-        success = -1;
+-      }
+-    }
+-  }
+-  time2 = getcputime(name, table);
+-  if((time2 - time1) < 0){
+-    printf(2, "FAILED: difference in CPU_total_ticks is negative.  T2 - T1 = %d\n", (time2 - time1));
+-    success = -1;
+-  }
+-  if((time2 - time1) > 400){
+-    printf(2, "ABNORMALLY HIGH: T2 - T1 = %d milliseconds.  Run test again\n", (time2 - time1));
+-    success = -1; 
+-  }
+-  printf(1, "T2 - T1 = %d milliseconds\n", (time2 - time1));
+-  free(table);
+-
+-  if(success == 0)
+-    printf(1, "** All Tests Passed! **\n");
+-}
+-#endif
+-#endif
+-
+-#ifdef GETPROCS_TEST
+-// Fork to 64 process and then make sure we get all when passing table array
+-// of sizes 1, 16, 64, 72
+-static int
+-testprocarray(int max, int expected_ret, char * name){
+-  struct uproc * table;
+-  int ret, success, num_init, num_sh, num_this;
+-  success = num_init = num_sh = num_this = 0;
+-  
+-  table = malloc(sizeof(struct uproc) * max);
+-  ret = getprocs(max, table);
+-  for (int i = 0; i < ret; ++i){
+-    if(strcmp(table[i].name, "init") == 0)
+-      ++num_init;
+-    else if(strcmp(table[i].name, "sh") == 0)
+-      ++num_sh;
+-    else if(strcmp(table[i].name, name) == 0)
+-      ++num_this;
+-  }
+-  if (ret != expected_ret){
+-    printf(2, "FAILED: getprocs(%d) returned %d, expected %d\n", max, ret, expected_ret);
+-    success = -1;
+-  }
+-  else{
+-    printf(1, "getprocs(%d), found %d processes with names(qty), \"init\"(%d), \"sh\"(%d), \"%s\"(%d)\n",
+-            max, ret, num_init, num_sh, name, num_this);
+-  }
+-  free(table);
+-  return success;
+-}
+-
+-static int
+-testinvalidarray(void){
+-  struct uproc * table;
+-  int ret;
+-
+-  table = malloc(sizeof(struct uproc));
+-  ret = getprocs(1024, table);
+-  free(table);
+-  if(ret >= 0){
+-    printf(2, "FAILED: called getprocs with max way larger than table and returned %d, not error\n", ret);
+-    return -1;
+-  }
+-  return 0;
+-}
+-
+-static void
+-testgetprocs(char * name){
+-  int ret, success;
+-
+-  printf(1, "\n----------\nRunning GetProcs Test\n----------\n");
+-  // Fork until no space left in ptable
+-  ret = fork();
+-  if (ret == 0){
+-    while((ret = fork()) == 0);
+-    if(ret > 0){
+-      wait();
+-      exit();
+-    }
+-    // Only return left is -1, which is no space left in ptable
+-    success = 0;
+-    if(testinvalidarray())
+-      success = -1;
+-    if(testprocarray(1, 1, name))
+-      success = -1;
+-    if(testprocarray(16, 16, name))
+-      success = -1;
+-    if(testprocarray(64, 64, name))
+-      success = -1;
+-    if(testprocarray(72, 64, name))
+-      success = -1;
+-    if (success == 0)
+-      printf(1, "** All Tests Passed **\n");
+-    exit(); 
+-  }
+-  wait();
+-}
+-#endif
+-
+-#ifdef TIME_TEST
+-// Forks a process and execs with time + args to see how it handles no args, invalid args, mulitple args
+-void
+-testtimewitharg(char **arg){
+-  int ret;
+- 
+-  ret = fork();
+-  if (ret == 0){
+-    exec(arg[0], arg);
+-    printf(2, "FAILED: exec failed to execute %s\n", arg[0]);
+-    exit();
+-  }
+-  else if(ret == -1){
+-    printf(2, "FAILED: fork failed\n");
+-  }
+-  else
+-    wait();
+-}
+-void
+-testtime(void){
+-  char **arg1 = malloc(sizeof(char *));
+-  char **arg2 = malloc(sizeof(char *)*2);
+-  char **arg3 = malloc(sizeof(char *)*2);
+-  char **arg4 = malloc(sizeof(char *)*4);
+-
+-  arg1[0] = malloc(sizeof(char) * 5);
+-  strcpy(arg1[0], "time");
+-
+-  arg2[0] = malloc(sizeof(char) * 5);
+-  strcpy(arg2[0], "time");
+-  arg2[1] = malloc(sizeof(char) * 4);
+-  strcpy(arg2[1], "abc");
+-
+-  arg3[0] = malloc(sizeof(char) * 5);
+-  strcpy(arg3[0], "time");
+-  arg3[1] = malloc(sizeof(char) * 5);
+-  strcpy(arg3[1], "date");
+-
+-  arg4[0] = malloc(sizeof(char) * 5);
+-  strcpy(arg4[0], "time");
+-  arg4[1] = malloc(sizeof(char) * 5);
+-  strcpy(arg4[1], "time");
+-  arg4[2] = malloc(sizeof(char) * 5);
+-  strcpy(arg4[2], "echo");
+-  arg4[3] = malloc(sizeof(char) * 6);
+-  strcpy(arg4[3], "\"abc\"");
+- 
+-  printf(1, "\n----------\nRunning Time Test\n----------\n");
+-  printf(1, "You will need to verify these tests passed\n");
+-
+-  printf(1,"\n%s\n", arg1[0]);
+-  testtimewitharg(arg1);
+-  printf(1,"\n%s %s\n", arg2[0], arg2[1]);
+-  testtimewitharg(arg2);
+-  printf(1,"\n%s %s\n", arg3[0], arg3[1]);
+-  testtimewitharg(arg3);
+-  printf(1,"\n%s %s %s %s\n", arg4[0], arg4[1], arg4[2], arg4[3]);
+-  testtimewitharg(arg4);
+-
+-  free(arg1[0]);
+-  free(arg1);
+-  free(arg2[0]); free(arg2[1]);
+-  free(arg2);
+-  free(arg3[0]); free(arg3[1]);
+-  free(arg3);
+-  free(arg4[0]); free(arg4[1]); free(arg4[2]); free(arg4[3]);
+-  free(arg4);
+-}
+-#endif
+-
+-int
+-main(int argc, char *argv[])
+-{
+-  #ifdef CPUTIME_TEST
+-  testcputime(argv[0]);
+-  #endif
+-  #ifdef UIDGIDPPID_TEST
+-  testuidgid();
+-  testuidgidinheritance();
+-  testppid();
+-  #endif
+-  #ifdef GETPROCS_TEST
+-  testgetprocs(argv[0]);
+-  #endif
+-  #ifdef TIME_TEST
+-  testtime();
+-  #endif
+-  printf(1, "\n** End of Tests **\n");
+-  exit();
+-}
+-#endif
+diff --git a/ps.c b/ps.c
+index 5db85c5..91eed7f 100644
+--- a/ps.c
++++ b/ps.c
+@@ -37,11 +37,6 @@ main(void)
+     i++;
+     printf(1, "\n");
+   }
+-
+-  //Lets delete the whole table nao =D
+-  //for(i = 0; i < rc; i++)
+-  //  free((void*)p[i]);
+-  free(p);
+   
+   exit();
+ }
+diff --git a/runoff.list b/runoff.list
+index 1c58b42..b9bc250 100644
+--- a/runoff.list
++++ b/runoff.list
+@@ -90,8 +90,4 @@ p5-test.c
+ p5-test.h
+ testsetuid.c
+ testSched.c
+-uproc.h
+-
+-# testing files:
+-p2testsuite.c
+-p2test.c
+\ No newline at end of file
++uproc.h
+\ No newline at end of file
+diff --git a/testuidgid.c b/testuidgid.c
+deleted file mode 100644
+index 3f0e1f9..0000000
+--- a/testuidgid.c
++++ /dev/null
+@@ -1,118 +0,0 @@
+-// Example for testing part of CS333 P2. 
+-// This is by NO MEANS a complete test.
+-#ifdef CS333_P2
+-#include "types.h"
+-#include "user.h"
+-
+-static void
+-uidTest(uint nval)
+-{
+-  uint uid = getuid();
+-  printf(1, "Current UID is: %d\n", uid);
+-  printf(1, "Setting UID to %d\n", nval);
+-  if (setuid(nval) < 0)
+-    printf(2, "Error. Invalid UID: %d\n", nval);
+-  uid = getuid();
+-  printf(1, "Current UID is: %d\n", uid);
+-  sleep(5 * TPS);  // now type control-p
+-}
+-
+-static void
+-gidTest(uint nval)
+-{
+-  uint gid = getgid();
+-  printf(1, "Current GID is: %d\n", gid);
+-  printf(1, "Setting GID to %d\n", nval);
+-  if (setgid(nval) < 0)
+-    printf(2, "Error. Invalid GID: %d\n", nval);
+-  setgid(nval);
+-  gid = getgid();
+-  printf(1, "Current GID is: %d\n", gid);
+-  sleep(5 * TPS);  // now type control-p
+-}
+-
+-static void
+-forkTest(uint nval)
+-{
+-  uint uid, gid;
+-  int pid;
+-
+-  printf(1, "Setting UID to %d and GID to %d before fork(). Value"
+-                  " should be inherited\n", nval, nval);
+-
+-  if (setuid(nval) < 0)
+-    printf(2, "Error. Invalid UID: %d\n", nval);
+-  if (setgid(nval) < 0)
+-    printf(2, "Error. Invalid UID: %d\n", nval);
+-
+-  printf(1, "Before fork(), UID = %d, GID = %d\n", getuid(), getgid());
+-  pid = fork();
+-  if (pid == 0) {  // child
+-    uid = getuid();
+-    gid = getgid();
+-    printf(1, "Child: UID is: %d, GID is: %d\n", uid, gid);
+-    sleep(5 * TPS);  // now type control-p
+-    exit();
+-  }
+-  else
+-    sleep(10 * TPS); // wait for child to exit before proceeding
+-
+-}
+-
+-static void
+-invalidTest(uint nval)
+-{
+-  printf(1, "Setting UID to %d. This test should FAIL\n", nval);
+-  if (setuid(nval) < 0)
+-    printf(1, "SUCCESS! The setuid sytem call indicated failure\n");
+-  else
+-    printf(2, "FAILURE! The setuid system call indicates success\n");
+-
+-  printf(1, "Setting GID to %d. This test should FAIL\n", nval);
+-  if (setgid(nval) < 0)
+-    printf(1, "SUCCESS! The setgid sytem call indicated failure\n");
+-  else
+-    printf(2, "FAILURE! The setgid system call indicates success\n");
+-
+-  printf(1, "Setting UID to %d. This test should FAIL\n", -1);
+-  if (setgid(-1) < 0)
+-    printf(1, "SUCCESS! The setgid sytem call indicated failure\n");
+-  else
+-    printf(2, "FAILURE! The setgid system call indicates success\n");
+-}
+-
+-static int
+-testuidgid(void)
+-{
+-  uint nval, ppid;
+-
+-  // get/set uid test
+-  nval = 100;
+-  uidTest(nval);
+-
+-  // get/set gid test
+-  nval = 200;
+-  gidTest(nval);
+-
+-  // getppid test
+-  ppid = getppid();
+-  printf(1, "My parent process is: %d\n", ppid);
+-
+-  // fork tests to demonstrate UID/GID inheritance 
+-  nval = 111;
+-  forkTest(nval);
+-
+-  // tests for invalid values for uid and gid
+-  nval = 32800;   // 32767 is max value
+-  invalidTest(nval);
+-
+-  printf(1, "Done!\n");
+-  return 0;
+-}
+-
+-int
+-main() {
+-  testuidgid();
+-  exit();
+-}
+-#endif
+diff --git a/testuidgid.txt b/testuidgid.txt
+deleted file mode 100644
+index 2a4520b..0000000
+--- a/testuidgid.txt
++++ /dev/null
+@@ -1,49 +0,0 @@
+-Example for using testuidgid. This testing uses the console control-p sequence. Note that user enters a
+-carriage return after each control-p to space the output. This accounts for the triple prompt at the end
+-of the test.
+-
+--------------------------------------------------------------------------------------------------------------------------------------
+-$ testuidgid
+-Current UID is: 0
+-Setting UID to 100
+-Current UID is: 100
+-
+-PID     Name         UID        GID     PPID    Elapsed CPU     State   Size     PCs
+-1       init         0          0       1       5.94    0.03    sleep   12288    801052df 80104f85 8010725a 80106457 80107785 80107580
+-2       sh           0          0       1       5.90    0.04    sleep   16384    801052df 80104f85 8010725a 80106457 80107785 80107580
+-3       testuidgid   100        0       2       1.11    0.01    sleep   16384    801052df 80107338 80106457 80107785 80107580
+-
+-Current GID is: 0
+-Setting GID to 200
+-Current GID is: 200
+-
+-PID     Name         UID        GID     PPID    Elapsed CPU     State   Size     PCs
+-1       init         0          0       1       10.60   0.03    sleep   12288    801052df 80104f85 8010725a 80106457 80107785 80107580
+-2       sh           0          0       1       10.56   0.04    sleep   16384    801052df 80104f85 8010725a 80106457 80107785 80107580
+-3       testuidgid   100        200     2       5.77    0.01    sleep   16384    801052df 80107338 80106457 80107785 80107580
+-
+-My parent process is: 2
+-Setting UID to 111 and GID to 111 before fork(). Value should be inherited
+-Before fork(), UID = 111, GID = 111
+-Child: UID is: 111, GID is: 111
+-
+-PID     Name         UID        GID     PPID    Elapsed CPU     State   Size     PCs
+-1       init         0          0       1       16.24   0.03    sleep   12288    801052df 80104f85 8010725a 80106457 80107785 80107580
+-2       sh           0          0       1       16.20   0.04    sleep   16384    801052df 80104f85 8010725a 80106457 80107785 80107580
+-3       testuidgid   111        111     2       11.41   0.03    sleep   16384    801052df 80107338 80106457 80107785 80107580
+-4       testuidgid   111        111     3       1.37    0.00    sleep   16384    801052df 80107338 80106457 80107785 80107580
+-
+-Setting UID to 32800. This test should FAIL
+-SUCCESS! The setuid sytem call indicated failure
+-Setting GID to 32800. This test should FAIL
+-SUCCESS! The setgid sytem call indicated failure
+-Setting UID to -1. This test should FAIL
+-SUCCESS! The setgid sytem call indicated failure
+-Done!
+-$ zombie!
+-$ $ $
+-$
+-PID     Name         UID        GID     PPID    Elapsed CPU     State   Size     PCs
+-1       init         0          0       1       26.66   0.04    sleep   12288    801052df 80104f85 8010725a 80106457 80107785 80107580
+-2       sh           0          0       1       26.62   0.08    sleep   16384    801052df 80100aa2 80101fdc 801012a2 80106617 80106457 80107785 80107580
+-
+diff --git a/time.c b/time.c
+index e8d1b85..9d93462 100644
+--- a/time.c
++++ b/time.c
+@@ -1,53 +1,11 @@
+ #ifdef CS333_P2
+ #include "types.h"
+ #include "user.h"
+-
+-void
+-printTime(int start, int end){
+-  int partial = end - start;
+-  int whole = 0;
+-  while(partial >= 100){
+-    ++whole;
+-    partial -= 100; }
+-
+-  if(partial < 10)
+-    printf(1, "%d.0%d", whole, partial);
+-  else
+-    printf(1, "%d.%d", whole, partial);
+-}
+-
+ int
+-main(int argc, char *argv[])
++main(void)
+ {
+-  int start = uptime();
+-  int end   = 0;
+-  int temp  = 1;
+-  int rc = 0;
+-
+-  if(argv[1] == 0x00)
+-    ;
+-  else
+-    temp = fork();
+-
+-  if (temp < 0)
+-    exit();
+-
+-  if(temp == 0)
+-    rc = exec(argv[1] , argv +1);
+-  else
+-    wait();
+-  end = uptime();
+-
+-  if(rc >= 0){
+-    if(argv[1] != 0x0)
+-      printf(1, "%s ", argv[1]);
+-    printf(1, "ran in ");
+-    printTime(start, end);
+-    printf(1, " seconds\n"); }
+-  else{
+-    printf(1, "ERROR: %s failed\n", argv[1]);
+-    exit(); }
+-
++  printf(1, "Not imlpemented yet.\n");
+   exit();
+ }
++
+ #endif
+-- 
+2.7.4
+
