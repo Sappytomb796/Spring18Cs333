@@ -69,9 +69,13 @@ allocproc(void)
 
   acquire(&ptable.lock);
 #ifdef CS333_P3P4
-  p = ptable.pLists.ready;
+  p = ptable.pLists.free;
   if(p)
+  if(stateListRemove(&ptable.pLists.free, &ptable.pLists.freeTail, p) == 0){
+    // Assert the state is correct
+    assertState(p, UNUSED);
     goto found;
+  }
 #else
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
@@ -82,14 +86,8 @@ allocproc(void)
 
 found:
 #ifdef CS333_P3P4
-  // Assert the state is correct before removing from the list;
-  assertState(p, UNUSED);
-  if(stateListRemove(&ptable.pLists.free, &ptable.pLists.freeTail, p)){
-    p->state = EMBRYO; // Change state before adding to the list
-    stateListAdd(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
-  }
-  else
-    panic("allocproc(), found:");
+  p->state = EMBRYO; // Change state before adding to the list
+  stateListAdd(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p);
 #else
   p->state = EMBRYO;
 #endif
@@ -99,7 +97,18 @@ found:
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
+  acquire(&ptable.lock);
+#ifdef CS333_P3P4
+  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p) == 0){
+    assertState(p, EMBRYO);
+    p->state = UNUSED; // Change state before adding to the list
+    stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, p); }
+  else
+    panic("allocproc, kstack");
+#else
     p->state = UNUSED;
+#endif
+  release(&ptable.lock);
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -142,7 +151,6 @@ userinit(void)
   initFreeList();
   release(&ptable.lock);
 #endif
-
   p = allocproc();
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -159,15 +167,14 @@ userinit(void)
   p->tf->eip = 0;  // beginning of initcode.S
 
 #ifdef CS333_P2
-  p->parent = p;
+  p->parent = 0x00;
   p->uid = DEFAULT_UID;
   p->gid = DEFAULT_GID;
 #endif
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
-  //  acquire(&ptable.lock);
+  acquire(&ptable.lock);
 #ifdef CS333_P3P4
   // Algorithm/ thoughts;
   // This is the first process, we are hand crafting it,
@@ -176,7 +183,7 @@ userinit(void)
   // we are not using the function it won't be done automatically.
   p->next = 0x00;
   assertState(p, EMBRYO);
-  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p)){
+  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, p) == 0){
     p->state = RUNNABLE; // Change state before adding to the list
     stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
   }
@@ -185,7 +192,7 @@ userinit(void)
 #else
   p->state = RUNNABLE;
 #endif
-  //  release(&ptable.lock);
+  release(&ptable.lock);
 }
 
 // Grow current process's memory by n bytes.
@@ -225,7 +232,17 @@ fork(void)
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
+#ifdef CS333_P3P4
+  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np) == 0){
+    assertState(np, EMBRYO);
     np->state = UNUSED;
+    if(stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, np) < 0)
+      panic("fork; could not add to free");
+  }
+  else panic("fork; copy process state from p");
+#else
+    np->state = UNUSED;
+#endif
     return -1;
   }
   np->sz = proc->sz;
@@ -251,7 +268,7 @@ fork(void)
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
 #ifdef CS333_P3P4
-  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np)){
+  if(stateListRemove(&ptable.pLists.embryo, &ptable.pLists.embryoTail, np) == 0){
     assertState(np, EMBRYO);
     np->state = RUNNABLE; // Change state before adding to the list
     stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, np);
@@ -311,6 +328,16 @@ exit(void)
 }
 #else
 //This is CS333_P3P4 flag turned on.
+// Assumes the lock is held!
+static void
+e_helper(struct proc ** list)
+{
+  struct proc * temp;
+  for(temp = *list; temp; temp = temp->next)
+    if(temp->parent == proc)
+      temp->parent = initproc;
+}
+
 void
 exit(void)
 {
@@ -334,27 +361,33 @@ exit(void)
   proc->cwd = 0;
 
   acquire(&ptable.lock);
-
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
-
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+
+  // We need to search the lists, so will call a
+  // helper function and pass the different lists in.
+  e_helper(&ptable.pLists.embryo);
+  e_helper(&ptable.pLists.ready);
+  e_helper(&ptable.pLists.running);
+  e_helper(&ptable.pLists.sleep);
+
+  // Zombie list has to be handled differently because of the potential trickery
+  // to wake initproc like we see in the original exit loop
+  for(p = ptable.pLists.zombie; p; p = p->next)
     if(p->parent == proc){
       p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
+      wakeup1(initproc);
     }
-  }
-
+  
   // Jump into the scheduler, never to return.
-  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, p)){
-    assertState(p, RUNNING);
+  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc) == 0){
+    assertState(proc, RUNNING);
     proc->state = ZOMBIE;
-    stateListAdd(&ptable.pLists.zombie, &ptable.pLists.zombieTail, p);    
+    stateListAdd(&ptable.pLists.zombie, &ptable.pLists.zombieTail, proc);
   }
-  else
-    panic("exit() list failure");
+  else panic("exit() list failure");
+
   sched();
   panic("zombie exit");
 
@@ -406,6 +439,17 @@ wait(void)
 }
 #else
 int
+w_helper(struct proc ** list)
+{
+  struct proc * p;
+  int count = 0;
+  for(p = *list; p; p = p->next)
+    if(p->parent == proc) // If there is a child, 
+      count = 1;
+  return count;
+}
+
+int
 wait(void)
 {
   struct proc *p;
@@ -415,11 +459,12 @@ wait(void)
   for(;;){
     // Scan through table looking for zombie children.
     havekids = 0;
+
     for(p = ptable.pLists.zombie; p; p = p->next){
       if(p->parent != proc)
-        continue;
+	continue;
       havekids = 1;
-
+      
       // Found one.
       pid = p->pid;
       kfree(p->kstack);
@@ -427,7 +472,7 @@ wait(void)
       freevm(p->pgdir);
 
       //Take it off of the zombie list and move to the free list.
-      if(stateListRemove(&ptable.pLists.zombie, &ptable.pLists.zombieTail, p)){
+      if(stateListRemove(&ptable.pLists.zombie, &ptable.pLists.zombieTail, p) == 0){
 	assertState(p, ZOMBIE);
 	p->state = UNUSED;
 	stateListAdd(&ptable.pLists.free, &ptable.pLists.freeTail, p);    
@@ -443,6 +488,12 @@ wait(void)
       return pid;
     }
 
+    // Now lets check the other lists for kiddos;
+    havekids += w_helper(&ptable.pLists.embryo);
+    havekids += w_helper(&ptable.pLists.ready);
+    havekids += w_helper(&ptable.pLists.running);
+    havekids += w_helper(&ptable.pLists.sleep);
+    
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
       release(&ptable.lock);
@@ -518,27 +569,26 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
     idle = 1;  // assume idle unless we schedule a process
-    // Loop over process table looking for process to run.
+
     acquire(&ptable.lock);
     for(p = ptable.pLists.ready; p; p = p->next){
       //Everything on this list must be runnable, do not need this check; delete later.
-      //if(p->state != RUNNABLE) 
-      //  continue;
+      if(p->state != RUNNABLE) 
+        continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      idle = 0;  // not idle this timeslice
-      proc = p;
-      switchuvm(p);
 
-      if(stateListRemove(&ptable.pLists.ready, &ptable.pLists.readyTail, p)){
+      if(stateListRemove(&ptable.pLists.ready, &ptable.pLists.readyTail, p) == 0){
 	assertState(p, RUNNABLE);
 	p->state = RUNNING; // Change state before adding to the list
 	stateListAdd(&ptable.pLists.running, &ptable.pLists.runningTail, p);
       }
+      idle = 0;  // not idle this timeslice
+      proc = p;
+      switchuvm(p);
       
 #ifdef CS333_P2
       p->cpu_ticks_in = ticks;
@@ -589,7 +639,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
 #ifdef CS333_P3P4
-  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc)){
+  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc) == 0){
     assertState(proc, RUNNING);
     proc->state = RUNNABLE; // Change state before adding to the list
     stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, proc);
@@ -646,7 +696,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   proc->chan = chan;
 #ifdef CS333_P3P4
-  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc)){
+  if(stateListRemove(&ptable.pLists.running, &ptable.pLists.runningTail, proc) == 0){
     assertState(proc, RUNNING);
     proc->state = SLEEPING; // Change state before adding to the list
     stateListAdd(&ptable.pLists.sleep, &ptable.pLists.sleepTail, proc);
@@ -682,14 +732,14 @@ wakeup1(void *chan)
       p->state = RUNNABLE;
 }
 #else
-static void //Project 3
+static void
 wakeup1(void *chan)
 {
   struct proc *p;
 
   for(p = ptable.pLists.sleep; p; p = p->next)
     if(p->chan == chan){
-      if(stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p)){
+      if(stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p) == 0){
 	assertState(p, SLEEPING);
 	p->state = RUNNABLE; // Change state before adding to the list
 	stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
@@ -733,30 +783,50 @@ kill(int pid)
   return -1;
 }
 #else
+// main logic for searching a single list to set
+// kill and return 0 for true if found, and
+// return -1 if none through the whole list.
+int
+k_helper(struct proc ** list, int pid)
+{
+  struct proc * p;
+  for(p = *list; p; p = p->next)
+    if(p->pid == pid){
+      p->killed = 1;
+      return 0;
+    }
+  return -1;
+}
+
+// Created helper to make kill logic more readable
 int
 kill(int pid)
 {
-  struct proc *p;
-
   acquire(&ptable.lock);
-  for(p = ptable.pLists.sleep; p; p = p->next){
-    if(p->pid == pid){
-      p->killed = 1;
-      // Wake process from sleep if necessary.
-      if(stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p)){
-	assertState(p, SLEEPING);
-	p->state = RUNNABLE; // Change state before adding to the list
-	stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
-      }
-      else
-	panic("kill()");
-      release(&ptable.lock);
-      return 0;
-    }
-  }
+
+  // Search through each list and if found, make
+  // sure to release the lock before leaving;
+  // Embryo
+  if(k_helper(&ptable.pLists.embryo, pid) == 0){
+    release(&ptable.lock);
+    return 0; }  
+  // Ready
+  if(k_helper(&ptable.pLists.ready, pid) == 0){
+    release(&ptable.lock);
+    return 0; }
+  // Running
+  if(k_helper(&ptable.pLists.running, pid) == 0){
+    release(&ptable.lock);
+    return 0; }
+  // Sleeping
+  if(k_helper(&ptable.pLists.sleep, pid) == 0){
+    release(&ptable.lock);
+    return 0; }
+
+  //None, release lock and return error
   release(&ptable.lock);
   return -1;
- 
+  
 }
 #endif
 
