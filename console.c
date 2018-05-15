@@ -197,6 +197,20 @@ consoleintr(int (*getc)(void))
     case C('P'):  // Process listing.
       doprocdump = 1;   // procdump() locks cons.lock indirectly; invoke later
       break;
+#ifdef CS333_P3P4
+    case C('R'):  
+      doprocdump = 2;
+      break;
+    case C('F'):  
+      doprocdump = 3;
+      break;
+    case C('S'):  
+      doprocdump = 4;
+      break;
+    case C('Z'):  
+      doprocdump = 5;
+      break;
+#endif
     case C('U'):  // Kill line.
       while(input.e != input.w &&
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
@@ -224,9 +238,31 @@ consoleintr(int (*getc)(void))
     }
   }
   release(&cons.lock);
+#ifdef CS333_P3P4
+  // Call the appropriate procdump for the
+  // appropriate control sequence
+  switch(doprocdump){
+  case 1:
+    procdump();
+    break;
+  case 2:
+    procdumpR();
+    break;
+  case 3:
+    procdumpF();
+    break;
+  case 4:
+    procdumpS();
+    break;
+  case 5:
+    procdumpZ();
+    break;
+  }
+#else
   if(doprocdump) {
     procdump();  // now call procdump() wo. cons.lock held
   }
+#endif
 }
 
 int

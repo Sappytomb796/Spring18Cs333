@@ -1101,4 +1101,71 @@ assertState(struct proc * p, enum procstate comp)
 
   panic("Oh bother...  Wrong state!!");
 }
+
+void
+procdumpR(void)
+{
+  struct proc * temp;
+
+  cprintf("Ready list procs (PID, Budget):\n");
+  acquire(&ptable.lock);
+  if(!ptable.pLists.ready)
+    cprintf("No procs on list right now\n");
+  else
+    for(temp = ptable.pLists.ready; temp; temp = temp->next){
+      cprintf("%d -> ", temp->pid);      
+    }
+  release(&ptable.lock);
+  cprintf("$ "); //This kills me not having the input that I can type on the command line.
+}
+
+void
+procdumpF(void)
+{
+  struct proc * temp = ptable.pLists.free;
+  int count = 0;
+
+  cprintf("Free list size: ");
+  acquire(&ptable.lock);
+  while(temp){
+    ++count;
+    temp = temp->next; }
+  release(&ptable.lock);
+  cprintf("%d procs", count);
+  cprintf("\n$ "); //This kills me not having the input that I can type on the command line.
+}
+
+void
+procdumpS(void)
+{
+  struct proc * temp = ptable.pLists.sleep;
+
+  cprintf("Sleep list procs:\n");
+  acquire(&ptable.lock);
+  if(!temp)
+    cprintf("No procs on list right now\n");
+  else{
+    for( ; temp->next; temp = temp->next)
+      cprintf("%d -> ", temp->pid);
+    cprintf("%d\n", temp->pid); }
+  release(&ptable.lock);
+  cprintf("$ "); //This kills me not having the input that I can type on the command line.
+}
+
+void
+procdumpZ(void)
+{
+  struct proc * temp = ptable.pLists.zombie;
+
+  cprintf("Zombie list procs (PID, PPID):");
+  acquire(&ptable.lock);
+  if(!temp)
+    cprintf("No procs on list right now\n");
+  else{
+    for( ; temp->next; temp = temp->next)
+      cprintf("(%d, %d)-> ", temp->pid, temp->parent->pid);
+    cprintf("(%d, %d)\n", temp->pid, temp->parent->pid); }
+  release(&ptable.lock);
+  cprintf("$ "); //This kills me not having the input that I can type on the command line.
+}
 #endif
