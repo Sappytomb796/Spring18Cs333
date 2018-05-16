@@ -364,13 +364,12 @@ exit(void)
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
   // Pass abandoned children to init.
-
   // We need to search the lists, so will call a
   // helper function and pass the different lists in.
   e_helper(&ptable.pLists.embryo);
   e_helper(&ptable.pLists.ready);
-  e_helper(&ptable.pLists.running);
   e_helper(&ptable.pLists.sleep);
+  e_helper(&ptable.pLists.running);
 
   // Zombie list has to be handled differently because of the potential trickery
   // to wake initproc like we see in the original exit loop
@@ -390,7 +389,6 @@ exit(void)
 
   sched();
   panic("zombie exit");
-
 }
 #endif
 
@@ -819,14 +817,19 @@ kill(int pid)
     release(&ptable.lock);
     return 0; }
   // Sleeping
-  if(k_helper(&ptable.pLists.sleep, pid) == 0){
-    release(&ptable.lock);
-    return 0; }
+  struct proc * p;
+  for(p = ptable.pLists.sleep; p; p = p->next)
+    if(p->pid == pid){
+      stateListRemove(&ptable.pLists.sleep, &ptable.pLists.sleepTail, p);
+      assertState(p, SLEEPING);
+      p->state = RUNNABLE; // Change state before adding to the list
+      stateListAdd(&ptable.pLists.ready, &ptable.pLists.readyTail, p);
+      break;
+    }
 
   //None, release lock and return error
   release(&ptable.lock);
   return -1;
-  
 }
 #endif
 
@@ -1109,12 +1112,14 @@ procdumpR(void)
 
   cprintf("Ready list procs (PID, Budget):\n");
   acquire(&ptable.lock);
-  if(!ptable.pLists.ready)
-    cprintf("No procs on list right now\n");
-  else
-    for(temp = ptable.pLists.ready; temp; temp = temp->next){
-      cprintf("%d -> ", temp->pid);      
-    }
+  
+  temp = ptable.pLists.ready;
+  if(!temp)
+    cprintf("No processes on the ready list\n");      
+  for(; temp; temp = temp->next){
+    cprintf("%d -> ", temp->pid);      
+  }
+  cprintf("\n");
   release(&ptable.lock);
   cprintf("$ "); //This kills me not having the input that I can type on the command line.
 }

@@ -86,12 +86,15 @@ chown.c
 chgrp.c
 chmod.c
 print_mode.c
+
 p5-test.c
 p5-test.h
 testsetuid.c
 testSched.c
 uproc.h
-
-# testing files:
 p2testsuite.c
-p2test.c
+ps-test.c
+loop.c
+ps-test.c
+sleepTest.c
+p3Test.c
