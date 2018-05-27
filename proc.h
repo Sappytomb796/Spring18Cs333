@@ -78,11 +78,17 @@ struct proc {
 #endif
 #ifdef CS333_P3P4
   struct proc * next;
+  uint   priority;
+  uint   budget;
 #endif
 };
 
 #ifdef CS333_P2
 int getproc(int max, struct uproc * table);
+#endif
+
+#ifdef CS333_P3P4
+int set_prio(int find_pid, int set_prio);
 #endif
 // Process memory is laid out contiguously, low addresses first:
 //   text

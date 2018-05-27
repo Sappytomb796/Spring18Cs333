@@ -175,3 +175,16 @@ sys_getprocs(void)
   return temp;
 }
 #endif
+#ifdef CS333_P3P4
+int
+sys_setpriority(void)
+{
+  int pid  = 0x00;
+  int prio = 0x00;
+
+  if(argint(0, (int *)&pid) < 0)  return -1;
+  if(argint(1, (int *)&prio) < 0) return -1;
+
+  return set_prio(pid, prio);
+}
+#endif
