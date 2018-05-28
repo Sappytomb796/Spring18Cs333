@@ -9,7 +9,7 @@
 
 #ifdef CS333_P3P4
 #define MAXBUDGET        100
-#define MAXPRIO          5
+#define MAXPRIO          2
 #define TICKS_TO_PROMOTE 1000           // 10 seconds...?
 
 struct StateLists{
@@ -272,6 +272,10 @@ fork(void)
 #ifdef CS333_P2
   np->uid = proc->uid;
   np->gid = proc->gid;
+#endif
+#ifdef CS333_P3P4
+  np->priority = 0;
+  np->budget   = MAXBUDGET;
 #endif
   
   // Clear %eax so that fork returns 0 in the child.
@@ -609,8 +613,8 @@ scheduler(void)
 	// Switch to chosen process.  It is the process's job
 	// to release ptable.lock and then reacquire it
 	// before jumping back to us.
-	
 	if(stateListRemove(&ptable.pLists.ready[i], &ptable.pLists.readyTail[i], p) == 0){
+	  if(i != p->priority) panic("wrong priority list");
 	  assertState(p, RUNNABLE);
 	  asserPrio(p, i);    // Assert this is on the right priority list
 	  p->state = RUNNING; // Change state before adding to the list
@@ -906,7 +910,7 @@ procdump(void)
   uint pc[10];
   uint temp;
   
-  cprintf("\tPID \tName \tUID \tGID \tPPID \tElapsed \tCPU \tState \tSize \tPCs\n");
+  cprintf("\tPID \tName \tUID \tGID \tPPID \tPrio \tElapsed \tCPU \tState \tSize \tPCs\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -920,6 +924,7 @@ procdump(void)
       cprintf("\t%d\t", p->uid);
     else
       cprintf("\t%d\t", p->parent->uid);
+    cprintf("%d\t", p->priority);
     temp = ticks;
     cprintf("%d.%d\t", ((temp - p->start_ticks)/1000), ((temp - p->start_ticks)%1000));
     cprintf(" \t%d", p->cpu_ticks_total);
@@ -1093,14 +1098,27 @@ promotion()
   // Need to know if we should unlock at the end.  This is why I was bugging out was
   // unlocking regardless the first run.
   int holding_lock = holding(&ptable.lock);  
-  if(!holding_lock)
-    acquire(&ptable.lock);
+  if(!holding_lock){
+    acquire(&ptable.lock); }
 
   struct proc * temp;
+
+  for(temp = ptable.pLists.running; temp; temp = temp->next){
+    if(temp->priority > 0){
+      temp->priority = temp->priority - 1;
+      temp->budget = MAXBUDGET;
+    }
+  }
+
+  for(temp = ptable.pLists.sleep; temp; temp = temp->next){
+    if(temp->priority > 0)
+      temp->priority = temp->priority - 1;
+  }
   
   for(temp = ptable.pLists.ready[1]; temp; temp = ptable.pLists.ready[1]){
     stateListRemove(&ptable.pLists.ready[1], &ptable.pLists.readyTail[1], temp);
     temp->priority = 0;
+    temp->budget = MAXBUDGET;
     stateListAdd(&ptable.pLists.ready[temp->priority], &ptable.pLists.readyTail[temp->priority], temp);
   }
 
@@ -1235,6 +1253,9 @@ getproc(int max, struct uproc * table)
     else
       (table[count]).ppid = ptable.proc[i].parent->uid;
 
+    //Proj 4
+    (table[count]).prio = ptable.proc[i].priority;
+    
     (table[count]).CPU_total_ticks = ptable.proc[i].cpu_ticks_total;
     (table[count]).elapsed_ticks = (ticks - ptable.proc[i].start_ticks);
     (table[count]).size = ptable.proc[i].sz;

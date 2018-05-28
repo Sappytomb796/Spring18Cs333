@@ -11,31 +11,17 @@ forktest(int N)
 
   printf(1, "starting fork test\n");
 
-  for(n=0; n<N; n++){
+  for(n=0; n < N; n++){
     pid = fork();
     if(pid < 0)
       exit();
-    if(pid == 0)
-      break;
-  }
-  
-  while(1) ;
-  
-  printf(2, "checking for %d child processes.\n", n);
-
-  for(; n > 0; n--){
-    if(wait() < 0){
-      printf(2, "wait stopped early\n");
-      exit();
-    }
+    if(pid == 0){
+      printf(1, "Parent, breaking\n");
+      break; }
   }
 
-  if(wait() != -1){
-    printf(2, "wait got too many\n");
-    exit();
-  }
-
-  printf(1, "fork test OK\n");
+  while(1)
+    ;
 }
 
 int
