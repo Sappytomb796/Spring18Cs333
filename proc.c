@@ -924,7 +924,7 @@ procdump(void)
       cprintf("\t%d\t", p->uid);
     else
       cprintf("\t%d\t", p->parent->uid);
-    cprintf("%d\t", p->priority);
+    //    cprintf("%d\t", p->priority); P4 disabled
     temp = ticks;
     cprintf("%d.%d\t", ((temp - p->start_ticks)/1000), ((temp - p->start_ticks)%1000));
     cprintf(" \t%d", p->cpu_ticks_total);
@@ -1254,7 +1254,7 @@ getproc(int max, struct uproc * table)
       (table[count]).ppid = ptable.proc[i].parent->uid;
 
     //Proj 4
-    (table[count]).prio = ptable.proc[i].priority;
+    //    (table[count]).prio = ptable.proc[i].priority;
     
     (table[count]).CPU_total_ticks = ptable.proc[i].cpu_ticks_total;
     (table[count]).elapsed_ticks = (ticks - ptable.proc[i].start_ticks);
