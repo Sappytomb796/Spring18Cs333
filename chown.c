@@ -2,9 +2,18 @@
 #include "types.h"
 #include "user.h"
 int
-main(void)
+main(int argc, char *argv[])
 {
-  printf(1, "Not imlpemented yet.\n");
+  if(argc != 3) {
+    printf(1, "Please enter a number to set the uid, followed by a valid file\n");
+    exit(); }
+
+  float num = atoi(argv[1]);
+
+  if (chown(argv[2], num) == -1){
+    printf(1, "please enter valid input\n");
+    exit(); }
+
   exit();
 }
 

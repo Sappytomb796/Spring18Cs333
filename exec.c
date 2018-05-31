@@ -6,6 +6,13 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#ifdef CS333_P5
+#include "stat.h"
+#endif
+
+#ifdef CS333_P5
+int check_permissions(struct stat * temp);
+#endif
 
 int
 exec(char *path, char **argv)
@@ -17,7 +24,10 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
-
+#ifdef CS333_P5
+  struct stat * temp = 0x00;
+#endif
+  
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -26,6 +36,18 @@ exec(char *path, char **argv)
   ilock(ip);
   pgdir = 0;
 
+#ifdef CS333_P5
+  stati(ip, temp);
+
+  if(!check_permissions(temp)){
+    if(ip){
+      iunlockput(ip);
+      end_op();
+    }
+    return -1;
+  }
+#endif
+  
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) < sizeof(elf))
     goto bad;
@@ -86,6 +108,11 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(proc->name, last, sizeof(proc->name));
 
+#ifdef CS333_P5
+  if(temp->mode.flags.setuid)
+    proc->uid = temp->uid;
+#endif
+  
   // Commit to the user image.
   oldpgdir = proc->pgdir;
   proc->pgdir = pgdir;
@@ -105,3 +132,24 @@ exec(char *path, char **argv)
   }
   return -1;
 }
+
+#ifdef CS333_P5
+int
+check_permissions(struct stat * temp)
+{
+  if(proc->uid == temp->uid)
+    if(temp->mode.flags.u_x)
+      return 1;
+    else
+      return -1;
+  else if(proc->gid == temp->gid)
+    if(temp->mode.flags.g_x)
+      return 1;
+    else
+      return -1;
+  else if(temp->mode.flags.o_x)
+    return 1;
+  
+  return -1;
+}
+#endif

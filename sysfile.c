@@ -440,3 +440,73 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+
+#ifdef CS333_P5
+int
+sys_chmod(void)
+{
+  char * path = 0x00;
+  int num = -1;
+  int n   = -1; // used for tracking return of chmod in fs.c
+
+  //If there's no filename
+  if(argptr(0, (void*)&path, sizeof(*path)) < 0)
+    return -1;
+  //No number incoming.
+  if(argint(1, &num) < 0)
+    return -1;
+
+  if(num > 1777)
+    return -1;
+
+  if(num < 0)
+    return -1;
+
+  begin_op();
+  n = ichmod((char *)path, num);
+  end_op();
+
+  return n;
+}
+
+int
+sys_chown(void)
+{
+  char * path = 0x00;
+  int num = -1;
+  int n = -1;
+
+  //If there's no filename
+  if(argptr(0, (void*)&path, sizeof(*path)) < 0)
+    return -1;
+  //No number incoming.
+  if(argint(1, &num) < 0)
+    return -1;
+
+  begin_op();
+  n = ichown(path, num);
+  end_op();
+  return n;
+}
+
+int
+sys_chgrp(void)
+{
+  char * path = 0x00;
+  int num = -1;
+  int n = -1;
+  //If there's no filename
+  if(argptr(0, (void*)&path, sizeof(*path)) < 0)
+    return -1;
+  //No number incoming.
+  if(argint(1, &num) < 0)
+    return -1;
+
+  begin_op();
+  n = ichgrp(path, num);
+  end_op();
+  return n;
+}
+#endif
+

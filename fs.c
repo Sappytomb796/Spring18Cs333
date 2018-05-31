@@ -184,6 +184,11 @@ ialloc(uint dev, short type)
     bp = bread(dev, IBLOCK(inum, sb));
     dip = (struct dinode*)bp->data + inum%IPB;
     if(dip->type == 0){  // a free inode
+#ifdef CS333_P5
+      dip->uid = DEFAULT_UID;
+      dip->gid = DEFAULT_GID;
+      dip->mode.asInt = DEFAULT_MODE;
+#endif
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
       log_write(bp);   // mark it allocated on the disk
@@ -209,6 +214,11 @@ iupdate(struct inode *ip)
   dip->minor = ip->minor;
   dip->nlink = ip->nlink;
   dip->size = ip->size;
+#ifdef CS333_P5
+  dip->uid = ip->uid;
+  dip->gid = ip->gid;
+  dip->mode.asInt = ip->mode.asInt;
+#endif
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
   log_write(bp);
   brelse(bp);
@@ -245,6 +255,11 @@ iget(uint dev, uint inum)
   ip->inum = inum;
   ip->ref = 1;
   ip->flags = 0;
+#ifdef CS333_P5
+  ip->uid = DEFAULT_UID;
+  ip->gid = DEFAULT_GID;
+  ip->mode.asInt = DEFAULT_MODE;
+#endif
   release(&icache.lock);
 
   return ip;
@@ -427,6 +442,11 @@ stati(struct inode *ip, struct stat *st)
   st->type = ip->type;
   st->nlink = ip->nlink;
   st->size = ip->size;
+#ifdef CS333_P5
+  st->uid = ip->uid;
+  st->gid = ip->gid;
+  st->mode.asInt = ip->mode.asInt;
+#endif
 }
 
 //PAGEBREAK!
@@ -649,3 +669,61 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+#ifdef CS333_P5
+int
+ichmod(char * path, int num)
+{
+  struct inode * n;
+
+  //find the inode
+  n = namei(path);
+  if(!n)
+    return -1;
+
+  //lock the node and modify it.
+  ilock(n);
+  n->mode.asInt = num;
+  iunlock(n);
+
+  return 1;
+}
+
+int
+ichown(char * path, int num)
+{
+  struct inode * n;
+
+  //find the inode
+  n = namei(path);
+
+  if(n == 0x00)
+    return -1;
+
+  //lock the node and modify it.
+  ilock(n);
+  n->uid = num;
+  iunlock(n);
+
+  return 1;
+}
+
+int
+ichgrp(char * path, int num)
+{
+  struct inode * n;
+
+  //find the inode
+  n = namei(path);
+
+  if(n == 0x00)
+    return -1;
+
+  //lock the node and modify it.
+  ilock(n);
+  n->gid = num;
+  iunlock(n);
+
+  return 1;
+}
+#endif
