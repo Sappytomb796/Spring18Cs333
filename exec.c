@@ -39,13 +39,8 @@ exec(char *path, char **argv)
 #ifdef CS333_P5
   stati(ip, temp);
 
-  if(!check_permissions(temp)){
-    if(ip){
-      iunlockput(ip);
-      end_op();
-    }
-    return -1;
-  }
+  if(check_permissions(temp) == -1){
+    goto bad;}
 #endif
   
   // Check ELF header
@@ -137,16 +132,18 @@ exec(char *path, char **argv)
 int
 check_permissions(struct stat * temp)
 {
-  if(proc->uid == temp->uid)
+  if(proc->uid == temp->uid){
     if(temp->mode.flags.u_x)
       return 1;
     else
       return -1;
-  else if(proc->gid == temp->gid)
+  }
+  else if(proc->gid == temp->gid){
     if(temp->mode.flags.g_x)
       return 1;
     else
       return -1;
+  }
   else if(temp->mode.flags.o_x)
     return 1;
   

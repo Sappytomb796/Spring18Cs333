@@ -10,6 +10,10 @@ main(int argc, char *argv[])
 
   float num = atoi(argv[1]);
 
+  if(num < 0 || num > 32767){
+    printf(1, "please enter a valid number from 0 - 32767\n");
+    exit(); }
+  
   if (chgrp(argv[2], num) == -1){
     printf(1, "please enter valid input\n");
     exit(); }

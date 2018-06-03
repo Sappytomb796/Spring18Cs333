@@ -141,7 +141,7 @@ int sys_setuid(void)
   //if it's a valid input, load it and return success
   if(0 <= num && num <= 32767){
     proc->uid = num;
-    return 1; }
+    return 0; }
   return -1;
 }
 
@@ -152,7 +152,7 @@ int sys_setgid(void)
   argint(0, (int*)&num);
   if(0 <= num && num <= 32767){
     proc->gid = num;
-    return 1; }
+    return 0; }
   return -1;
 }
 

@@ -19,7 +19,6 @@ union stat_mode_t{
   } flags;
   uint asInt;
 };
-
 #endif
 
 struct stat {

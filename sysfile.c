@@ -467,7 +467,10 @@ sys_chmod(void)
   n = ichmod((char *)path, num);
   end_op();
 
-  return n;
+  if(n >= 0)
+    return 0;
+  else
+    return -1;
 }
 
 int
@@ -487,7 +490,11 @@ sys_chown(void)
   begin_op();
   n = ichown(path, num);
   end_op();
-  return n;
+
+  if(n >= 0)
+    return 0;
+  else
+    return -1;
 }
 
 int
@@ -506,7 +513,11 @@ sys_chgrp(void)
   begin_op();
   n = ichgrp(path, num);
   end_op();
-  return n;
+
+  if(n >= 0)
+    return 0;
+  else
+    return -1;
 }
 #endif
 

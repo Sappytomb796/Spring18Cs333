@@ -301,6 +301,11 @@ ilock(struct inode *ip)
     ip->minor = dip->minor;
     ip->nlink = dip->nlink;
     ip->size = dip->size;
+#ifdef CS333_P5
+    ip->uid = dip->uid;
+    ip->gid = dip->gid;
+    ip->mode.asInt = dip->mode.asInt;
+#endif
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
     brelse(bp);
     ip->flags |= I_VALID;
@@ -674,56 +679,71 @@ nameiparent(char *path, char *name)
 int
 ichmod(char * path, int num)
 {
+  begin_op();
   struct inode * n;
 
   //find the inode
   n = namei(path);
-  if(!n)
+  if(!n){
+    end_op();
     return -1;
-
+  }
+    
   //lock the node and modify it.
   ilock(n);
   n->mode.asInt = num;
+  iupdate(n);
   iunlock(n);
 
+  end_op();
   return 1;
 }
 
 int
 ichown(char * path, int num)
 {
+  begin_op();
   struct inode * n;
 
   //find the inode
   n = namei(path);
 
-  if(n == 0x00)
+  if(n == 0x00){
+    end_op();
     return -1;
-
+  }
+  
   //lock the node and modify it.
   ilock(n);
   n->uid = num;
+  iupdate(n);
   iunlock(n);
 
+  end_op();
   return 1;
 }
 
 int
 ichgrp(char * path, int num)
 {
+  begin_op();
   struct inode * n;
 
   //find the inode
   n = namei(path);
 
-  if(n == 0x00)
+  if(n == 0x00){
+    end_op();
     return -1;
+  }
 
   //lock the node and modify it.
   ilock(n);
   n->gid = num;
+  iupdate(n);
   iunlock(n);
 
+  end_op();
   return 1;
 }
 #endif
